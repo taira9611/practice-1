@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中興大學模型展示</title>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+        
+        .hamburger {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 30px;
+            height: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            z-index: 100; /* 確保在最上層 */
+        }
+
+        .hamburger span {
+            display: block;
+            width: 100%;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        /* 漢堡條動畫 (X 形) */
+        .hamburger.open span:nth-child(1) {
+            transform: translateY(11px) rotate(45deg);
+        }
+
+        .hamburger.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.open span:nth-child(3) {
+            transform: translateY(-11px) rotate(-45deg);
+        }
+
+        /* 側邊選單樣式 */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -250px; /* 初始隱藏在右側 */
+            width: 250px;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding-top: 60px;
+            transition: right 0.3s ease;
+            z-index: 99;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .sidebar.open {
+            right: 0; /* 顯示選單 */
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar ul li {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar ul li:last-child {
+            border-bottom: none;
+        }
+
+        .sidebar ul li a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            transition: background-color 0.2s ease;
+        }
+
+        .sidebar ul li a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+          }
+        }
+    </script>
+</head>
+
+<body>
+    <div class="hamburger" id="hamburger-button">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+    <div class="sidebar" id="sidebar-menu">
+        <ul>
+            <li><a href="#">首頁</a></li>
+            <li><a href="#">關於興大</a></li>
+            <li><a href="#" data-model-id="huison">惠蓀堂</a></li>
+            <li><a href="#" data-model-id="yuanting">圓廳</a></li>
+            <li><a href="#" data-model-id="xiaolitang">小禮堂</a></li>
+            <li><a href="#" data-model-id="blockA">區塊a</a></li>
+            <li><a href="#" data-model-id="blockB">區塊b</a></li>
+            <li><a href="#" data-model-id="blockC">區塊c</a></li>
+        </ul>
+    </div>
+
+    <script type="module">
+
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 1. 初始化場景、攝影機和渲染器
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xcccccc);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2. 添加環境光和方向光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+
+        // 3. 初始化 OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 0.5;
+        controls.maxDistance = 50;
+        controls.enablePan = false;
+        controls.enableRotate = true;
+        controls.enableZoom = true;
+
+        // 4. 初始化 GLTFLoader
+        const loader = new GLTFLoader();
+
+        let loadedModel = null;
+        let originalMaterials = new Map(); // 用來儲存原始材質
+        let modelCenter = new THREE.Vector3();
+        let modelSize = new THREE.Vector3();
+
+        // 獲取漢堡條和側邊選單元素
+        const hamburgerButton = document.getElementById('hamburger-button');
+        const sidebarMenu = document.getElementById('sidebar-menu');
+
+        // 漢堡條點擊事件
+        hamburgerButton.addEventListener('click', () => {
+            sidebarMenu.classList.toggle('open');
+            hamburgerButton.classList.toggle('open');
+        });
+
+        // 側邊選單項目點擊事件 (用於未來載入不同模型)
+        sidebarMenu.querySelectorAll('a').forEach(item => {
+            item.addEventListener('click', (event) => {
+                // 如果是首頁或關於興大，直接跳轉 (目前是佔位符)
+                if (event.target.textContent === '首頁' || event.target.textContent === '關於興大') {
+                    // event.preventDefault(); // 如果您想讓它不跳轉，可以取消註解這行
+                    console.log(`點擊了：${event.target.textContent}`);
+                    // 實際應用中可以在這裡導向
+                    // window.location.href = 'your_homepage.html';
+                    // 或者 window.location.href = 'about_nchu.html';
+                } else {
+                    event.preventDefault(); // 阻止連結預設行為
+                    const modelId = event.target.dataset.modelId;
+                    console.log(`嘗試載入模型/區塊：${event.target.textContent} (ID: ${modelId})`);
+                    // 在這裡添加根據 modelId 載入不同模型的邏輯
+                    // 目前只載入一個模型，所以這裡不會有實際的模型切換
+                    // 可以在這裡呼叫 loadModel(modelId)
+                    // loadModel('path/to/your/model_' + modelId + '.glb'); 
+                    alert(`目前只有一個模型 (nchu2.glb)。點擊了：${event.target.textContent}`);
+                }
+                
+                // 點擊項目後關閉選單 (可選)
+                sidebarMenu.classList.remove('open');
+                hamburgerButton.classList.remove('open');
+            });
+        });
+
+
+        // 5. 載入模型
+        loader.load(
+            'model/nchu3.glb',
+            function (gltf) {
+                loadedModel = gltf.scene;
+                scene.add(loadedModel);
+                console.log('模型載入成功！', loadedModel);
+
+                const box = new THREE.Box3().setFromObject(loadedModel);
+                box.getCenter(modelCenter);
+                box.getSize(modelSize);
+
+                // 將模型中心移到原點，以便於旋轉
+                loadedModel.position.sub(modelCenter);
+
+                // 儲存原始材質
+                loadedModel.traverse((node) => {
+                    if (node.isMesh) {
+                        originalMaterials.set(node.uuid, node.material);
+                    }
+                });
+
+                // 初始化視角
+                updateViewMode(0);
+
+            },
+            function (xhr) {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            function (error) {
+                console.error('載入模型時發生錯誤！', error);
+            }
+        );
+
+        // 視角切換函數
+        function updateViewMode(mode) {
+            if (!loadedModel) return;
+
+            const maxDim = Math.max(modelSize.x, modelSize.y, modelSize.z);
+            const distanceFactor = 0.45; 
+            let target = new THREE.Vector3(0, 0, 0); 
+
+            camera.position.set(maxDim * distanceFactor, maxDim * distanceFactor * 0.5, maxDim * distanceFactor * 1.5);
+            camera.lookAt(target);
+
+            controls.target.copy(target);
+            controls.object.position.copy(camera.position); 
+            controls.update();
+        }
+
+        // 應用材質函數 (雖然移除了選擇器，但函數保留以防未來需要或調試)
+        function applyMaterial() {
+            // 這個函數已不再直接從 HTML 元素觸發，可以選擇移除或保留
+            // 如果未來需要動態改變材質，可以修改這裡的邏輯
+            console.log("Apply Material function called, but no direct HTML control now.");
+            if (!loadedModel) return;
+
+            // 這裡可以根據某種邏輯來應用預設或特定材質
+            // 例如，如果需要載入新模型時，自動應用原始材質：
+            loadedModel.traverse((node) => {
+                if (node.isMesh) {
+                    node.material = originalMaterials.get(node.uuid); // 載入新模型時恢復原始材質
+                }
+            });
+        }
+
+        // 動畫迴圈
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (loadedModel) {
+                controls.update(); 
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 監聽視窗大小變化以調整渲染器和攝影機
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+
+    </script>
+</body>
+
+</html>

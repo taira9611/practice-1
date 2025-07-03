@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中興大學模型展示</title>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+            position: relative; /* 確保文字提示可以相對定位 */
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* 漢堡條按鈕樣式 */
+        .hamburger {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 30px;
+            height: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            z-index: 100; /* 確保在最上層 */
+        }
+
+        .hamburger span {
+            display: block;
+            width: 100%;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        /* 漢堡條動畫 (X 形) */
+        .hamburger.open span:nth-child(1) {
+            transform: translateY(11px) rotate(45deg);
+        }
+
+        .hamburger.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.open span:nth-child(3) {
+            transform: translateY(-11px) rotate(-45deg);
+        }
+
+        /* 側邊選單樣式 */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -250px; /* 初始隱藏在右側 */
+            width: 250px;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding-top: 60px;
+            transition: right 0.3s ease;
+            z-index: 99;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .sidebar.open {
+            right: 0; /* 顯示選單 */
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar ul li {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar ul li:last-child {
+            border-bottom: none;
+        }
+
+        .sidebar ul li a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            transition: background-color 0.2s ease;
+        }
+
+        .sidebar ul li a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* 模型名稱提示框樣式 */
+        #model-name-tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 14px;
+            pointer-events: none; /* 讓滑鼠事件穿透 */
+            z-index: 90; /* 確保在模型之上但低於漢堡條 */
+            display: none; /* 預設隱藏 */
+            white-space: nowrap; /* 不換行 */
+        }
+    </style>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+          }
+        }
+    </script>
+</head>
+
+<body>
+    <div class="hamburger" id="hamburger-button">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+    <div class="sidebar" id="sidebar-menu">
+        <ul>
+            <li><a href="#">首頁</a></li>
+            <li><a href="#">關於興大</a></li>
+            <li><a href="#" data-model-id="huison">惠蓀堂</a></li>
+            <li><a href="#" data-model-id="yuanting">圓廳</a></li>
+            <li><a href="#" data-model-id="xiaolitang">小禮堂</a></li>
+            <li><a href="#" data-model-id="blockA">區塊a</a></li>
+            <li><a href="#" data-model-id="blockB">區塊b</a></li>
+            <li><a href="#" data-model-id="blockC">區塊c</a></li>
+        </ul>
+    </div>
+    
+    <div id="model-name-tooltip"></div>
+
+    <script type="module">
+
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 1. 初始化場景、攝影機和渲染器
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xcccccc);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2. 添加環境光和方向光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+
+        // 3. 初始化 OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 0.5;
+        controls.maxDistance = 50;
+        // **新增**：預設啟用拖曳和縮放功能
+        controls.enablePan = true; // 允許平移
+        controls.enableRotate = true; // 允許旋轉
+        controls.enableZoom = true; // 允許縮放
+        
+        // 4. 初始化 GLTFLoader, Raycaster, Mouse Vector
+        const loader = new GLTFLoader();
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        let loadedModel = null;
+        
+        const targetBuildingNames = [
+            "化材大樓", "國農中心", "圓廳", "小禮堂", "小禮堂預定地", "惠蓀堂主體", "惠蓀堂預定地", 
+            "應科大樓", "森林館", "水保二館", "水保館", "理工大樓A", "理工大樓B", "理工大樓主體", 
+            "生技所", "生科大樓", "生管所", 
+            "興創基地A", "興創基地b", "蛋白體中心", "防疫檢疫大樓", "電機大樓", "食品暨生技實習工廠", 
+            "食品暨生物科技大樓", "食安大樓"
+        ];
+
+        const targetBuildings = new Map(); 
+        const originalMaterialsMap = new Map(); 
+
+        const glowMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffee00, 
+            transparent: true,
+            opacity: 0.8, 
+        });
+        
+        let modelCenter = new THREE.Vector3();
+        let modelSize = new THREE.Vector3();
+
+        const hamburgerButton = document.getElementById('hamburger-button');
+        const sidebarMenu = document.getElementById('sidebar-menu');
+        const tooltip = document.getElementById('model-name-tooltip');
+
+        // **新增**：追蹤點擊鎖定的建築
+        let lockedBuilding = null; 
+
+        hamburgerButton.addEventListener('click', () => {
+            sidebarMenu.classList.toggle('open');
+            hamburgerButton.classList.toggle('open');
+        });
+
+        sidebarMenu.querySelectorAll('a').forEach(item => {
+            item.addEventListener('click', (event) => {
+                if (event.target.textContent === '首頁' || event.target.textContent === '關於興大') {
+                    console.log(`點擊了：${event.target.textContent}`);
+                } else {
+                    event.preventDefault(); 
+                    const modelId = event.target.dataset.modelId;
+                    console.log(`嘗試載入模型/區塊：${event.target.textContent} (ID: ${modelId})`);
+                    alert(`目前只有一個模型 (nchu2.glb)。點擊了：${event.target.textContent}`);
+                }
+                
+                sidebarMenu.classList.remove('open');
+                hamburgerButton.classList.remove('open');
+            });
+        });
+
+
+        // 5. 載入模型
+        loader.load(
+            'model/nchu3.glb', 
+            function (gltf) {
+                loadedModel = gltf.scene;
+                scene.add(loadedModel);
+                console.log('模型載入成功！', loadedModel);
+
+                targetBuildingNames.forEach(name => {
+                    const building = loadedModel.getObjectByName(name);
+                    if (building) {
+                        targetBuildings.set(name, building);
+                        const buildingOriginalMaterials = new Map();
+                        building.traverse((node) => {
+                            if (node.isMesh) {
+                                // 儲存材質時，確保是其深度複製，避免共享材質實例被修改
+                                if (Array.isArray(node.material)) {
+                                    buildingOriginalMaterials.set(node.uuid, node.material.map(m => m.clone()));
+                                } else {
+                                    buildingOriginalMaterials.set(node.uuid, node.material.clone());
+                                }
+                            }
+                        });
+                        originalMaterialsMap.set(name, buildingOriginalMaterials);
+                        console.log(`找到並儲存了 "${name}" 的材質。`);
+                    } else {
+                        console.warn(`模型中找不到名稱為 "${name}" 的物件。請檢查模型結構。`);
+                    }
+                });
+
+                const box = new THREE.Box3().setFromObject(loadedModel);
+                box.getCenter(modelCenter);
+                box.getSize(modelSize);
+
+                loadedModel.position.sub(modelCenter);
+
+                updateViewMode(0);
+
+            },
+            function (xhr) {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            function (error) {
+                console.error('載入模型時發生錯誤！', error);
+            }
+        );
+
+        // 視角切換函數
+        function updateViewMode(mode) {
+            if (!loadedModel) return;
+
+            const maxDim = Math.max(modelSize.x, modelSize.y, modelSize.z);
+            const distanceFactor = 0.45; 
+            let target = new THREE.Vector3(0, 0, 0); 
+
+            camera.position.set(maxDim * distanceFactor, maxDim * distanceFactor * 0.5, maxDim * distanceFactor * 1.5);
+            camera.lookAt(target);
+
+            controls.target.copy(target);
+            controls.object.position.copy(camera.position); 
+            controls.update();
+        }
+
+        let currentHoveredBuilding = null; 
+
+        // 滑鼠移動事件處理
+        function onMouseMove(event) {
+            // 如果視角已被鎖定，則不執行懸停效果
+            if (lockedBuilding) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            let intersectedBuilding = null;
+            let intersectionPoint = null; 
+
+            for (const [name, building] of targetBuildings) {
+                const intersects = raycaster.intersectObjects(building.children, true);
+                if (intersects.length > 0) {
+                    intersectedBuilding = building;
+                    intersectionPoint = intersects[0].point; 
+                    break; 
+                }
+            }
+
+            if (intersectedBuilding && intersectedBuilding !== currentHoveredBuilding) {
+                // 從未懸停 -> 新建築被懸停 (啟用發光和顯示名稱)
+                if (currentHoveredBuilding) {
+                    const oldBuildingMaterials = originalMaterialsMap.get(currentHoveredBuilding.name);
+                    if (oldBuildingMaterials) {
+                        currentHoveredBuilding.traverse((node) => {
+                            if (node.isMesh) {
+                                node.material = oldBuildingMaterials.get(node.uuid);
+                            }
+                        });
+                    }
+                }
+
+                intersectedBuilding.traverse((node) => {
+                    if (node.isMesh) {
+                        node.material = glowMaterial;
+                    }
+                });
+                currentHoveredBuilding = intersectedBuilding;
+                document.body.style.cursor = 'pointer'; 
+
+                tooltip.textContent = intersectedBuilding.name;
+                tooltip.style.display = 'block';
+
+                const vector = new THREE.Vector3();
+                vector.copy(intersectionPoint);
+                vector.project(camera); 
+
+                const x = (vector.x * .5 + .5) * window.innerWidth;
+                const y = (vector.y * -.5 + .5) * window.innerHeight;
+
+                tooltip.style.left = `${x + 10}px`; 
+                tooltip.style.top = `${y - 20}px`;
+
+
+            } else if (!intersectedBuilding && currentHoveredBuilding) {
+                // 從建築上移開 (恢復原始材質和隱藏名稱)
+                const oldBuildingMaterials = originalMaterialsMap.get(currentHoveredBuilding.name);
+                if (oldBuildingMaterials) {
+                    currentHoveredBuilding.traverse((node) => {
+                        if (node.isMesh) {
+                            node.material = oldBuildingMaterials.get(node.uuid);
+                        }
+                    });
+                }
+                currentHoveredBuilding = null;
+                document.body.style.cursor = 'auto';
+
+                tooltip.style.display = 'none';
+                tooltip.textContent = ''; 
+            } else if (intersectedBuilding && intersectedBuilding === currentHoveredBuilding) {
+                // 如果滑鼠在同一個建築上移動，更新 tooltip 的位置
+                const vector = new THREE.Vector3();
+                vector.copy(intersectionPoint);
+                vector.project(camera); 
+
+                const x = (vector.x * .5 + .5) * window.innerWidth;
+                const y = (vector.y * -.5 + .5) * window.innerHeight;
+
+                tooltip.style.left = `${x + 10}px`;
+                tooltip.style.top = `${y - 20}px`;
+            }
+        }
+
+        // **新增**：滑鼠點擊事件處理
+        function onMouseClick(event) {
+            // 計算滑鼠座標 (與 onMouseMove 相同)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            let clickedBuilding = null;
+
+            for (const [name, building] of targetBuildings) {
+                const intersects = raycaster.intersectObjects(building.children, true);
+                if (intersects.length > 0) {
+                    clickedBuilding = building;
+                    break; 
+                }
+            }
+
+            if (clickedBuilding) {
+                // 如果點擊到一個建築
+                if (lockedBuilding === clickedBuilding) {
+                    // 如果點擊到的是已經鎖定的建築，解鎖
+                    lockedBuilding = null;
+                    controls.enabled = true; // 重新啟用控制器
+                    console.log(`解鎖視角：${clickedBuilding.name}`);
+                } else {
+                    // 如果點擊到的是新的建築，鎖定視角
+                    // 1. 如果之前有鎖定的建築，先恢復其原始材質
+                    if (lockedBuilding) {
+                        const oldBuildingMaterials = originalMaterialsMap.get(lockedBuilding.name);
+                        if (oldBuildingMaterials) {
+                            lockedBuilding.traverse((node) => {
+                                if (node.isMesh) {
+                                    node.material = oldBuildingMaterials.get(node.uuid);
+                                }
+                            });
+                        }
+                    }
+
+                    lockedBuilding = clickedBuilding;
+                    controls.enabled = false; // 禁用控制器
+                    console.log(`鎖定視角到：${clickedBuilding.name}`);
+
+                    // 確保被鎖定的建築發光
+                    lockedBuilding.traverse((node) => {
+                        if (node.isMesh) {
+                            node.material = glowMaterial;
+                        }
+                    });
+
+                    // 隱藏懸停時的提示框，因為鎖定後不需要持續提示
+                    tooltip.style.display = 'none';
+                    tooltip.textContent = ''; 
+
+                    // 可以選擇移動攝影機到該建築的特定視角 (可選)
+                    // 例如，移動到建築的中心點附近
+                    // let boundingBox = new THREE.Box3().setFromObject(lockedBuilding);
+                    // let buildingCenter = new THREE.Vector3();
+                    // boundingBox.getCenter(buildingCenter);
+                    // controls.target.copy(buildingCenter);
+                    // camera.position.set(buildingCenter.x + 2, buildingCenter.y + 2, buildingCenter.z + 5);
+                    // controls.update();
+                }
+            } else {
+                // 如果點擊到空白處，並且有建築被鎖定，則解鎖
+                if (lockedBuilding) {
+                    const oldBuildingMaterials = originalMaterialsMap.get(lockedBuilding.name);
+                    if (oldBuildingMaterials) {
+                        lockedBuilding.traverse((node) => {
+                            if (node.isMesh) {
+                                node.material = oldBuildingMaterials.get(node.uuid);
+                            }
+                        });
+                    }
+                    lockedBuilding = null;
+                    controls.enabled = true; // 重新啟用控制器
+                    console.log("點擊空白處，解鎖視角。");
+                }
+            }
+        }
+
+
+        // 監聽滑鼠移動事件
+        window.addEventListener('mousemove', onMouseMove, false);
+        // **新增**：監聽滑鼠點擊事件
+        window.addEventListener('click', onMouseClick, false);
+
+
+        // 動畫迴圈
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 只有當 controls 被啟用時才更新
+            if (controls.enabled && loadedModel) { 
+                controls.update(); 
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 監聽視窗大小變化以調整渲染器和攝影機
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+
+    </script>
+</body>
+
+</html>
